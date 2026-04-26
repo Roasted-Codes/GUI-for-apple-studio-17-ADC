@@ -94,10 +94,6 @@ sudo i2ctransfer -y 1 w7@0x37 0x51 0x84 0x03 0xD6 0x00 0x04 0x6A
 sudo usbmonctl -g F,0xD6
 ```
 
-## Voltage note
-
-The Pi's 3.3V GPIO drives a 5V DDC bus via the monitor's internal pullups. This works but is out of spec for the Pi's inputs. A BSS138 level shifter is the proper fix for long-term use.
-
 ## Video setup
 
 The DVI port is occupied by the I2C wires, so video goes through the VGA port on the Jason adapter. Use an HDMI-to-VGA adapter from the Pi's HDMI output.
