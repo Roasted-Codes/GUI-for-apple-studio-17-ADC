@@ -5,15 +5,11 @@
 
 STATE=$(usbmonctl -g F,0xD6 2>/dev/null | awk '{print $1}')
 
-if [ -z "$STATE" ]; then
-    echo "Error: cannot read monitor state. Run with sudo?" >&2
-    exit 1
-fi
-
 if [ "$STATE" = "1" ]; then
     i2ctransfer -y 1 w7@0x37 0x51 0x84 0x03 0xD6 0x00 0x04 0x6A
     echo "CRT off"
 else
+    # If state is 4 (off), empty (can't read), or anything else — power on
     i2ctransfer -y 1 w7@0x37 0x51 0x84 0x03 0xD6 0x00 0x01 0x6F
     echo "CRT on"
 fi
