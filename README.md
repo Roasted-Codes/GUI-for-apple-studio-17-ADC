@@ -2,9 +2,13 @@
 
 Control an Apple Studio Display 17" CRT (M7768) from a Raspberry Pi using a Jason "Does It All" ADC adapter. Wire 4 jumper cables from the Pi's GPIO to the adapter's DVI port, install the .deb package, and the monitor powers on at boot with full geometry calibration from the desktop.
 
+![Apple Studio Display 17" CRT running off a Raspberry Pi via the Jason ADC adapter](images/setup-overview.jpg)
+
 ## Quick Start
 
 ### 1. Wire the Pi to the DVI port on the Jason adapter
+
+![Jason "Does It All" ADC-to-USB adapter board](images/jason-adapter.jpg)
 
 | Pi Pin | Pi Function | DVI Pin | DVI Function |
 |--------|-------------|---------|--------------|
@@ -22,6 +26,8 @@ Control an Apple Studio Display 17" CRT (M7768) from a Raspberry Pi using a Jaso
  Row 2:  9   10   11   12   13  [14] [15]  16
                                  5V   GND
 ```
+
+![Jumper wires seated in DVI pins 6, 7, 14, and 15](images/dvi-wiring.jpg)
 
 ### 2. Enable I2C on the Pi
 
