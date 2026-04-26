@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Background daemon for Apple Studio Display 17" CRT (M7768).
+"""Boot-time power-on for Apple Studio Display 17" CRT (M7768).
 
-- Auto-powers on the monitor at startup
-- Listens for brightness button → steps contrast through 5 levels
-- Runs as a systemd service
+Waits for the monitor to appear on USB, powers it on, then exits.
+Runs as a oneshot systemd service before the desktop session starts.
 
 Must run as root.
 """
@@ -14,11 +13,7 @@ import time
 import logging
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from crt_backend import (
-    BUTTON_USAGE_E4, BRIGHTNESS_CODE, BRIGHTNESS_STEP,
-    find_device, read_control, write_control,
-    read_power, set_power, listen_buttons,
-)
+from crt_backend import find_device, read_power, set_power
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,7 +46,6 @@ def main():
 
     log.info(f"Found monitor at {device}")
 
-    # Auto power-on
     state = read_power(device)
     if state != 1:
         log.info("Powering on monitor...")
@@ -60,26 +54,6 @@ def main():
         log.info("Monitor powered on.")
     else:
         log.info("Monitor already on.")
-
-    # Listen for button presses — brightness stepping
-    log.info("Listening for brightness button (5 levels)...")
-
-    def on_button(usage, value):
-        if usage == BUTTON_USAGE_E4:
-            current = read_control(BRIGHTNESS_CODE, device)
-            if current is None:
-                current = 0
-            new_val = current + BRIGHTNESS_STEP
-            if new_val > 96:
-                new_val = 0
-            write_control(BRIGHTNESS_CODE, new_val, device)
-            log.info(f"Brightness: {current} -> {new_val}")
-
-    try:
-        listen_buttons(device, on_button)
-    except OSError as e:
-        log.error(f"Lost connection to monitor: {e}")
-        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -1,12 +1,11 @@
 [Unit]
-Description=Apple Studio Display CRT Daemon
+Description=Apple Studio Display CRT Power-On
 After=multi-user.target
 
 [Service]
-Type=simple
+Type=oneshot
 ExecStart=/usr/bin/python3 /usr/lib/crt-control/crt-daemon
-Restart=on-failure
-RestartSec=5
+RemainAfterExit=no
 
 [Install]
 WantedBy=multi-user.target

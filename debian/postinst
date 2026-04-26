@@ -15,19 +15,20 @@ if [ -d "$LABWC_DIR" ]; then
         # Check if keybinding already exists
         if ! grep -q "crt-toggle" "$RC_FILE" 2>/dev/null; then
             # Insert keybinding before closing </openbox_config> tag
-            sed -i 's|</openbox_config>|  <keyboard>\n    <keybind key="C-A-F12">\n      <action name="Execute"><command>sudo /usr/bin/crt-toggle</command></action>\n    </keybind>\n  </keyboard>\n</openbox_config>|' "$RC_FILE"
+            sed -i 's|</openbox_config>|  <keyboard>\n    <keybind key="C-A-p">\n      <action name="Execute"><command>sudo /usr/bin/crt-toggle</command></action>\n    </keybind>\n  </keyboard>\n</openbox_config>|' "$RC_FILE"
         fi
     else
         cp /usr/share/crt-control/99-crt-control.xml "$RC_FILE"
     fi
 fi
 
-# Add sudoers rule for passwordless crt-toggle and GUI
+# Add sudoers rule for passwordless crt-toggle, GUI, and tray
 cat > /etc/sudoers.d/crt-control << 'EOF'
 ALL ALL=(root) NOPASSWD: /usr/bin/crt-toggle
 ALL ALL=(root) NOPASSWD: /usr/bin/python3 /usr/lib/crt-control/pi-adc-gui.py
+ALL ALL=(root) NOPASSWD: /usr/bin/python3 /usr/lib/crt-control/crt-buttons
 EOF
 chmod 440 /etc/sudoers.d/crt-control
 
-echo "pi-adc-control installed. Super+M toggles monitor power."
+echo "pi-adc-control installed. Ctrl+Alt+P toggles monitor power."
 echo "Open Preferences → ADC CRT Control for geometry adjustments."

@@ -2,7 +2,7 @@
 <!-- Super+M toggles Apple Studio Display power -->
 <openbox_config xmlns="http://openbox.org/3.4/rc">
   <keyboard>
-    <keybind key="C-A-F12">
+    <keybind key="C-A-p">
       <action name="Execute">
         <command>sudo /usr/bin/crt-toggle</command>
       </action>

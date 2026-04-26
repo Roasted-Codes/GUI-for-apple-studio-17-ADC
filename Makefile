@@ -15,15 +15,18 @@ $(DEB):
 	mkdir -p $(BUILDDIR)/usr/share/applications
 	mkdir -p $(BUILDDIR)/usr/share/crt-control
 	mkdir -p $(BUILDDIR)/etc/systemd/system
+	mkdir -p $(BUILDDIR)/etc/xdg/autostart
 	# Python files
 	cp crt_backend.py $(BUILDDIR)/usr/lib/crt-control/
 	cp pi-adc-gui.py $(BUILDDIR)/usr/lib/crt-control/
 	cp crt-daemon $(BUILDDIR)/usr/lib/crt-control/
+	cp crt-buttons $(BUILDDIR)/usr/lib/crt-control/
 	# CLI toggle
 	cp crt-toggle $(BUILDDIR)/usr/bin/
 	chmod 755 $(BUILDDIR)/usr/bin/crt-toggle
-	# Desktop entry
+	# Desktop entries
 	cp adc-crt-control.desktop $(BUILDDIR)/usr/share/applications/
+	cp crt-buttons.desktop $(BUILDDIR)/etc/xdg/autostart/
 	# labwc keybinding template
 	cp 99-crt-control.xml $(BUILDDIR)/usr/share/crt-control/
 	# Systemd service

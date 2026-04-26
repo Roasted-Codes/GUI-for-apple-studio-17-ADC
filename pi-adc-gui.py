@@ -5,6 +5,7 @@ Must run as root: sudo python3 pi-adc-gui.py
 """
 
 import os
+import signal
 import sys
 import threading
 
@@ -15,9 +16,9 @@ from gi.repository import Gtk, GLib
 # Allow importing crt_backend from the same directory
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from crt_backend import (
-    CONTROLS, FACTORY_DEFAULTS, BUTTON_USAGE_E4, BRIGHTNESS_CODE, BRIGHTNESS_STEP,
+    CONTROLS, FACTORY_DEFAULTS, BRIGHTNESS_CODE,
     find_device, read_control, write_control, degauss, apply_settings,
-    read_vsync, read_power, set_power, listen_buttons,
+    read_vsync, read_power, set_power,
 )
 
 
@@ -28,10 +29,15 @@ class ADCControlApp(Gtk.Window):
         self.adjustments = {}
         self.scales = {}
         self.vsync_label = None
-        self.power_on_radio = None
-        self.power_off_radio = None
+        self.power_switch = None
+        self.power_box = None
+        self.countdown_label = None
+        self.cancel_button = None
+        self._poweroff_timer = None
+        self._poweroff_countdown = 0
         self.status_label = None
         self._writing = set()
+        self._updating_power = False
 
         self.set_border_width(8)
         self.connect("destroy", Gtk.main_quit)
@@ -97,59 +103,55 @@ class ADCControlApp(Gtk.Window):
         pwr_frame.set_margin_bottom(4)
         vbox.pack_start(pwr_frame, False, False, 0)
 
-        pwr_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        pwr_box.set_margin_start(8)
-        pwr_box.set_margin_top(4)
-        pwr_box.set_margin_bottom(4)
-        pwr_frame.add(pwr_box)
+        self.power_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.power_box.set_margin_start(8)
+        self.power_box.set_margin_top(4)
+        self.power_box.set_margin_bottom(4)
+        pwr_frame.add(self.power_box)
 
-        self.power_on_radio = Gtk.RadioButton.new_with_label(None, "On")
-        self.power_on_radio.connect("toggled", self._on_power_toggled, True)
-        pwr_box.pack_start(self.power_on_radio, False, False, 0)
+        self.power_switch = Gtk.Switch()
+        self.power_switch.connect("state-set", self._on_power_toggled)
+        self.power_box.pack_start(self.power_switch, False, False, 0)
 
-        self.power_off_radio = Gtk.RadioButton.new_with_label_from_widget(
-            self.power_on_radio, "Off")
-        pwr_box.pack_start(self.power_off_radio, False, False, 0)
+        self.countdown_label = Gtk.Label()
+        self.power_box.pack_start(self.countdown_label, False, False, 0)
+
+        self.cancel_button = Gtk.Button(label="Cancel")
+        self.cancel_button.connect("clicked", self._cancel_poweroff)
+        self.power_box.pack_start(self.cancel_button, False, False, 0)
 
         # --- Status bar ---
         self.status_label = Gtk.Label(label="", xalign=0)
         vbox.pack_start(self.status_label, False, False, 0)
 
         self.show_all()
+        self.countdown_label.hide()
+        self.cancel_button.hide()
         self._read_all(None)
-        self._start_button_listener()
+        self._install_signal_handler()
+
+    def _install_signal_handler(self):
+        """Listen for SIGUSR1 from crt-tray to refresh the contrast slider."""
+        def on_signal(*_args):
+            self._refresh_contrast()
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, on_signal)
+
+    def _refresh_contrast(self):
+        def do_read():
+            val = read_control(BRIGHTNESS_CODE, self.device)
+            if val is not None:
+                def update_ui():
+                    self._writing.add(BRIGHTNESS_CODE)
+                    self.adjustments[BRIGHTNESS_CODE].set_value(val)
+                    self._writing.discard(BRIGHTNESS_CODE)
+                    return False
+                GLib.idle_add(update_ui)
+            return False
+        threading.Thread(target=do_read, daemon=True).start()
+        return True
 
     def _set_status(self, text):
         GLib.idle_add(self.status_label.set_text, text)
-
-    def _start_button_listener(self):
-        def on_button(usage, value):
-            if usage == BUTTON_USAGE_E4:
-                self._on_brightness_button()
-
-        def listen():
-            try:
-                listen_buttons(self.device, on_button)
-            except OSError:
-                pass
-
-        threading.Thread(target=listen, daemon=True).start()
-
-    def _on_brightness_button(self):
-        current = int(self.adjustments[BRIGHTNESS_CODE].get_value())
-        new_val = current + BRIGHTNESS_STEP
-        if new_val > 96:
-            new_val = 0
-
-        def update_ui():
-            self._writing.add(BRIGHTNESS_CODE)
-            self.adjustments[BRIGHTNESS_CODE].set_value(new_val)
-            self._writing.discard(BRIGHTNESS_CODE)
-            self.status_label.set_text(f"Brightness: {new_val}")
-            return False
-
-        write_control(BRIGHTNESS_CODE, new_val, self.device)
-        GLib.idle_add(update_ui)
 
     def _on_spin_changed(self, spin, code):
         if code in self._writing:
@@ -192,10 +194,9 @@ class ADCControlApp(Gtk.Window):
                 if vsync is not None:
                     self.vsync_label.set_text(f"V. Rate: {vsync:.1f} Hz")
                 if power is not None:
-                    if power == 1:
-                        self.power_on_radio.set_active(True)
-                    else:
-                        self.power_off_radio.set_active(True)
+                    self._updating_power = True
+                    self.power_switch.set_active(power == 1)
+                    self._updating_power = False
                 self.status_label.set_text("")
                 return False
 
@@ -239,20 +240,64 @@ class ADCControlApp(Gtk.Window):
                 self._set_status(f"Error: {e}")
         threading.Thread(target=do_it, daemon=True).start()
 
-    def _on_power_toggled(self, radio, on):
-        if not radio.get_active():
+    def _on_power_toggled(self, switch, on):
+        if self._updating_power:
             return
-        self._set_status("Powering on..." if on else "Powering off...")
-        def do_it():
-            try:
-                set_power(on)
-                self._set_status("")
-            except Exception as e:
-                self._set_status(f"Error: {e}")
-        threading.Thread(target=do_it, daemon=True).start()
+        if on:
+            self._cancel_poweroff(None)
+            self._set_status("Powering on...")
+            def do_it():
+                try:
+                    set_power(True)
+                    self._set_status("")
+                except Exception as e:
+                    self._set_status(f"Error: {e}")
+            threading.Thread(target=do_it, daemon=True).start()
+        else:
+            self._start_poweroff_countdown()
+
+    def _start_poweroff_countdown(self):
+        self._poweroff_countdown = 5
+        self.countdown_label.set_text(f"Powering off in {self._poweroff_countdown}s — Ctrl+Alt+P to restore")
+        self.countdown_label.show()
+        self.cancel_button.show()
+        self._poweroff_timer = GLib.timeout_add(1000, self._poweroff_tick)
+
+    def _poweroff_tick(self):
+        self._poweroff_countdown -= 1
+        if self._poweroff_countdown <= 0:
+            self.countdown_label.hide()
+            self.cancel_button.hide()
+            self._poweroff_timer = None
+            self._set_status("Powering off...")
+            def do_it():
+                try:
+                    set_power(False)
+                    self._set_status("")
+                except Exception as e:
+                    self._set_status(f"Error: {e}")
+            threading.Thread(target=do_it, daemon=True).start()
+            return False
+        self.countdown_label.set_text(f"Powering off in {self._poweroff_countdown}s — Ctrl+Alt+P to restore")
+        return True
+
+    def _cancel_poweroff(self, _widget):
+        if self._poweroff_timer is not None:
+            GLib.source_remove(self._poweroff_timer)
+            self._poweroff_timer = None
+        self.countdown_label.hide()
+        self.cancel_button.hide()
+        self._updating_power = True
+        self.power_switch.set_active(True)
+        self._updating_power = False
+        self._set_status("")
 
 
 def main():
+    # Exit cleanly on SIGTERM (sent by crt-buttons to close the GUI)
+    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM,
+                         lambda: Gtk.main_quit() or True)
+
     if os.geteuid() != 0:
         dialog = Gtk.MessageDialog(
             message_type=Gtk.MessageType.ERROR,
