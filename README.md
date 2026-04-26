@@ -2,7 +2,7 @@
 
 Power on/off an Apple Studio Display 17" CRT (M7768) from a Raspberry Pi using a Jason "Does It All" ADC adapter.
 
-The Apple Studio Display uses Apple's proprietary ADC connector. The Jason adapter converts DVI and VGA to ADC, letting you use modern video sources. But the monitor has no software power button — there's no way to turn it on or off without reaching behind the CRT and pressing the physical button.
+The Apple Studio Display uses Apple's proprietary ADC connector. The Jason adapter converts DVI and VGA to ADC, letting you use modern video sources. But the monitor has no software power control — and the physical power button doesn't work either, since ADC monitors rely on the host computer (originally a Mac) to manage power.
 
 This project fixes that with 4 wires and a shell script.
 
